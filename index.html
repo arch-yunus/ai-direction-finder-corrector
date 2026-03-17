@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Direction Finder Corrector | TEKNOFEST 2026</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <h1>AI SIGNAL CORRECTOR <span>v1.0</span></h1>
+        </div>
+        <div class="header-actions">
+            <span class="status-badge">SYSTEM ACTIVE</span>
+            <span class="status-badge" style="background: rgba(168, 255, 0, 0.1); color: #a8ff00;">AI OPTIMIZED</span>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <section class="radar-section">
+            <canvas id="radarCanvas"></canvas>
+        </section>
+
+        <section class="telemetry-section">
+            <div class="panel telemetry">
+                <h3>LIVE TELEMETRY</h3>
+                <hr style="margin: 1rem 0; border: 0; border-top: 1px solid var(--glass-border);">
+                <div class="data-row">
+                    <span class="data-label">Sampling Rate:</span>
+                    <span class="data-value">1024 Hz</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Baseline AoA:</span>
+                    <span id="baselineAngle" class="data-value">0.00°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">AI Corrected AoA:</span>
+                    <span id="correctedAngle" class="data-value ai-value">0.00°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">RMS Error (est):</span>
+                    <span id="rmsError" class="data-value ai-value">0.00°</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Signal Quality:</span>
+                    <span id="snrValue" class="data-value" style="color: #ff9d00;">LOW</span>
+                </div>
+                <button class="glow-btn" id="rescanBtn" style="margin-top: 1rem; width: 100%;">FORCE RESCAN</button>
+            </div>
+
+            <div class="panel logs">
+                <h3>SYSTEM LOGS</h3>
+                <div class="terminal" id="terminal">
+                    <p class="info">[09:12:01] System boot sequence initiated...</p>
+                    <p class="info">[09:12:02] Loading MLP weights from models/...</p>
+                    <p class="success">[09:12:03] AI Model verified. Error margin: ±1.2°</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
