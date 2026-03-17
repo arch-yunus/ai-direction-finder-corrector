@@ -1,75 +1,96 @@
 <div align="center">
 
 # 🛰️ AI Direction Finder Corrector
-### *TEKNOFEST 2026 | Elektronik Harp & Sinyal Optimizasyonu*
+### *TEKNOFEST 2026 | Sinyal Optimizasyonu & Derin Öğrenme*
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg?style=for-the-badge)](https://github.com/bahattinyunus/ai-direction-finder-corrector)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg?style=for-the-badge)](https://github.com/bahattinyunus/ai-direction-finder-corrector)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=for-the-badge&logo=python)](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 [![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C.svg?style=for-the-badge&logo=pytorch)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-F7931E.svg?style=for-the-badge&logo=scikit-learn)](https://scikit-learn.org/)
 
-**ai-direction-finder-corrector**, sahada karşılaşılan fiziksel ve çevresel ölçüm hatalarını yapay zeka ile minimize eden, yüksek hassasiyetli bir sinyal optimizasyon modülüdür.
-
-[Özellikler](#-özellikler) • [Mimari](#-model-mimarisi) • [Kurulum](#-hızlı-başlangıç) • [Dashboard](#-canlı-izleme)
+**ai-direction-finder-corrector**, Electronic Warfare (EW) senaryolarında TDOA tabanlı yön bulma algoritlamarının fiziksel kısıtlamalarını (yansıma, gürültü, sapma) derin öğrenme ile aşan bir sistemdir.
 
 ---
 
 </div>
 
-## 🛡️ Proje Vizyonu
-Elektronik Harp sahasında (1x1 km), çok yollu sönümleme (multipath fading) ve donanım sapmaları nedeniyle geleneksel algoritmalar yüksek **RMS hatası** verir. Bu modül; ham SDR verilerini alır, gürültüyü filtreler ve hedef açısını (**AoA - Angle of Arrival**) yapay sinir ağları ile düzelterek **±1.2°** hassasiyete indirger.
+## 🧬 Teknik Derin Bakış (Deep Dive)
 
-## ✨ Özellikler
-- **MLP Tabanlı Regresyon:** Non-linear yansıma hatalarını öğrenen derin öğrenme mimarisi.
-- **Dinamik Hata Kestirimi:** Gerçek zamanlı SNR analizi ile anlık RMS güven aralığı hesaplama.
-- **Premium Radar Dashboard:** Web tabanlı, 60 FPS sinyal izleme arayüzü.
-- **Sentetik Veri Motoru:** Saha testleri öncesi binlerce farklı senaryo ile eğitim imkanı.
+Bu proje, donanımsal ölçümlerdeki non-linear hataları "kara kutu" olarak modellemek yerine, fiziksel sinyal karakteristiklerini yapay sinir ağları ile normalize eder.
 
-## 🏗️ Model Mimarisi
-Sistem, üç aşamalı bir boru hattı (pipeline) üzerinde çalışır:
-1.  **Datalink:** SDR ağından gelen TDOA (Time Difference of Arrival) vektörlerinin toplanması.
-2.  **Correction Engine:** MLP (Multi-Layer Perceptron) katmanlarında sin/cos encoding ile açı tahmini.
-3.  **Output:** Düzeltilmiş LOB (Line of Bearings) verisinin ET birimlerine aktarılması.
+### 1. Hata Modelleme ve Veri Simülasyonu (`data_gen.py`)
+Geleneksel TDOA (Time Difference of Arrival) sistemlerinde, alıcılar arası mesafe ($d$) ve ışık hızı ($c$) kullanılarak varış zamanı farkı hesaplanır:
+$$\Delta t = \frac{d \cdot \cos(\theta)}{c}$$
+
+Ancak gerçek sahada bu denklem şu şekle dönüşür:
+$$\Delta t_{noisy} = \Delta t_{true} + \epsilon_{multipath}(\theta) + \epsilon_{gaussian}$$
+
+- **Multipath Fading:** Projedeki simülatör, açıya bağlı sistematik yansıma hatalarını ($5 \cdot \sin(2\theta)$) ekleyerek modelin bu paternleri öğrenmesini sağlar.
+- **SNR Weighting:** Sinyal-Gürültü Oranı, verinin güvenilirliğini belirlemek için modele ek girdi (feature) olarak verilir.
+
+### 2. Yapay Sinir Ağı Mimarisi (`df_corrector.py`)
+Sistemde kullanılan **Multi-Layer Perceptron (MLP)** şu özelliklere sahiptir:
+- **Giriş Katmanı:** [TDOA1, TDOA2, SNR] (3 Nöron)
+- **Gizli Katmanlar:** 64 ve 32 nöronlu, ReLU aktivasyon fonksiyonuna sahip derin mimari.
+- **Çıkış Katmanı:** [$\sin(\theta)$, $\cos(\theta)$] (2 Nöron)
+
+> [!IMPORTANT]
+> **Neden Sin/Cos Encoding?**
+> Açı birimleri (0-360) doğrusaldır ancak süreklilik arz etmez (359'dan 0'a geçiş büyük bir "sıçrama" gibi görünür). Bu durum gradyan hesaplamasını bozar. Çıkışı birim çember üzerinde ($\sin, \cos$) tahmin ederek bu "discontinuity" problemini çözüyoruz.
+
+### 3. Gerçek Zamanlı Görselleştirme (`app.js`)
+Dashboard, düşük gecikmeli (low-latency) görselleştirme için saf HTML5 Canvas kullanır:
+- **Conic Sweep:** 60 FPS frekans tarama simülasyonu.
+- **Signal Tracking:** Ham veriden gelen hatalı açı (kırmızı kesikli çizgi) ile AI tarafından düzeltilmiş gerçek açı (yeşil parlak çizgi) anlık olarak kıyaslanır.
+- **RMS Error Prediction:** AI modeli, SNR seviyesine göre o anki tahmininin güven aralığını statik modellerin aksine dinamik olarak hesaplar.
+
+## 🛠️ Yazılım Mimarisi
 
 ```mermaid
-graph LR
-    A[Ham Sensör Verisi] --> B(Gürültü Filtreleme)
-    B --> C{AI Core}
-    C --> D[Düzeltilmiş AoA]
-    C --> E[Tahmini RMS Hatası]
-    D --> F[Radar Dashboard]
+graph TD
+    subgraph "Data Layer"
+        DG[data_gen.py] --> CSV[synthetic_signals.csv]
+    end
+    
+    subgraph "Core AI"
+        CSV --> DFC[df_corrector.py]
+        DFC --> MLP[MLP Regressor]
+        MLP --> PTH[models/tdoa_error_corrector.pth]
+    end
+    
+    subgraph "Frontend"
+        PTH --> WEB[index.html]
+        WEB --> JS[app.js]
+        JS --> CANVAS[Canvas Radar]
+    end
 ```
 
-## 🚀 Hızlı Başlangıç
+## 🚀 Gelişmiş Kullanım
 
-### 1. Kurulum
-```bash
-git clone https://github.com/bahattinyunus/ai-direction-finder-corrector.git
-cd ai-direction-finder-corrector
-pip install -r requirements.txt
-```
+Eğitilmiş modeli sahada kullanmak:
 
-### 2. Eğitim ve Test
 ```python
-from df_corrector import AIOptimizedDirectionFinder
+import torch
 import numpy as np
+from df_corrector import AIOptimizedDirectionFinder
 
-# Modeli yükle ve sinyali düzelt
-df = AIOptimizedDirectionFinder(weights_path="models/tdoa_error_corrector.pth")
-corrected = df.predict_angle(np.array([[12.4, -5.2, 30.0]])) # [tdoa1, tdoa2, snr]
+# 1. Model Başlatma
+finder = AIOptimizedDirectionFinder(weights_path="models/tdoa_error_corrector.pth")
 
-print(f"✅ AI Corrected AoA: {corrected['angle']:.2f}°")
+# 2. SDR'dan Gelen Ham Veri
+# TDOA1: 15.2ns, TDOA2: -4.1ns, SNR: 22dB
+raw_data = np.array([[15.2, -4.1, 22.0]])
+
+# 3. Akıllı Düzeltme
+prediction = finder.predict_angle(raw_data)
+
+print(f"Hedef Açısı: {prediction['angle']:.2f}°")
+print(f"Hata Payı: ±{prediction['rms_error']:.2f}°")
 ```
-
-## 🖥️ Canlı İzleme (Dashboard)
-Gelişmiş görselleştirme paneli için `index.html` dosyasını tarayıcınızda açmanız yeterlidir. 
-- Gerçek zamanlı radar taraması.
-- Ham vs. Düzeltilmiş sinyal kıyaslaması.
-- Sistem log terminali.
 
 ---
 
 <p align="center">
-  <i>"Donanımın sınırlarını yazılımın zekasıyla genişletiyoruz."</i><br>
-  <b>TEKNOFEST 2026 - Otonom Elektronik Harp Sistemleri</b>
+  <b>TEKNOFEST 2026 İnsansız Sistemler Grubu</b><br>
+  <i>"Hassasiyet Tesadüf Değildir."</i>
 </p>
