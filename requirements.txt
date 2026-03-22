@@ -1,7 +1,6 @@
-torch
-scikit-learn
 numpy
 pandas
-scipy
-matplotlib
-flask
+scikit-learn
+fastapi
+uvicorn
+pydantic

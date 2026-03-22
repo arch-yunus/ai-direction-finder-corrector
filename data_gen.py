@@ -1,35 +1,41 @@
 import numpy as np
 import pandas as pd
 
-def generate_synthetic_tdoa(num_samples=1000):
+def generate_synthetic_tdoa(num_samples=1000, noise_level=1.0):
     """
-    Simulates TDOA (Time Difference of Arrival) data for 3 receivers.
-    Inputs: Ground truth angle (AoA).
-    Outputs: Noisy TDOA measurements.
+    Simulates TDOA data for a 3-receiver array.
+    Now includes multipath interference and signal-dependent noise.
     """
-    # Ground truth angles (0 to 360 degrees)
     true_angles = np.random.uniform(0, 360, num_samples)
     
-    # Simple geometry: 3 receivers at fixed distance
-    # d_ij = dist * cos(theta)
-    dist = 100.0 # meters
-    c = 3e8 # speed of light
+    # Receiver positions (equilateral triangle)
+    r = 0.5 # 50cm baseline for portability
+    c = 3e8
     
-    # Calculate perfect TDOA (in nanoseconds for scale)
-    tdoa1 = (dist * np.cos(np.radians(true_angles))) / c * 1e9
-    tdoa2 = (dist * np.sin(np.radians(true_angles))) / c * 1e9
+    # Ideal TDOA (relative to center)
+    # TDOA1: S1-S2, TDOA2: S2-S3
+    alpha = np.radians(true_angles)
+    tdoa1 = (r * np.cos(alpha)) / c * 1e9
+    tdoa2 = (r * np.cos(alpha - np.radians(120))) / c * 1e9
     
-    # Add non-linear noise (multipath + sensor noise)
-    noise_multipath = 5.0 * np.sin(np.radians(true_angles * 2)) # systematic reflection error
-    noise_gaussian = np.random.normal(0, 2.0, num_samples) # random noise
+    # Multipath: Angle-dependent bias
+    multipath = 1.2 * np.sin(3 * alpha) + 0.8 * np.cos(5 * alpha)
     
-    noisy_tdoa1 = tdoa1 + noise_multipath + noise_gaussian
-    noisy_tdoa2 = tdoa2 + noise_multipath + noise_gaussian
+    # Gaussian noise scaled by noise_level
+    gaussian_noise = np.random.normal(0, noise_level * 1.5, num_samples)
+    
+    # SNR simulation
+    snr = np.random.uniform(5, 35, num_samples)
+    # Lower SNR = Higher jitter
+    jitter = (40 - snr) / 10.0 * np.random.normal(0, 0.5, num_samples)
+    
+    noisy_tdoa1 = tdoa1 + multipath + gaussian_noise + jitter
+    noisy_tdoa2 = tdoa2 + multipath + gaussian_noise + jitter
     
     data = pd.DataFrame({
         'tdoa1': noisy_tdoa1,
         'tdoa2': noisy_tdoa2,
-        'snr': np.random.uniform(10, 40, num_samples),
+        'snr': snr,
         'true_angle': true_angles
     })
     
