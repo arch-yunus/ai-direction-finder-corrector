@@ -5,15 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Direction Finder Corrector | TEKNOFEST 2026</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
         <div class="logo">
-            <h1>AI SIGNAL CORRECTOR <span>v1.0</span></h1>
+            <h1>AI SIGNAL CORRECTOR <span>v3.0</span></h1>
         </div>
         <div class="header-actions">
-            <span class="status-badge">SYSTEM ACTIVE</span>
-            <span class="status-badge" style="background: rgba(168, 255, 0, 0.1); color: #a8ff00;">AI OPTIMIZED</span>
+            <span class="status-badge" id="backendStatus">BACKEND: OFFLINE</span>
+            <span class="status-badge" style="background: rgba(168, 255, 0, 0.1); color: var(--accent-tertiary);">ANALYTICS ACTIVE</span>
         </div>
     </header>
 
@@ -30,25 +31,8 @@
             <div class="panel telemetry">
                 <h3>LIVE SIGNAL DATA</h3>
                 <div class="data-row">
-                    <span class="data-label">Array Status:</span>
-                    <span class="status-badge" style="background: rgba(168, 255, 0, 0.1); color: var(--accent-tertiary);">NOMINAL</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Sampling Rate:</span>
-                    <span class="data-value">2048 samples/s</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">Noise Level (std):</span>
-                    <span id="noiseLevel" class="data-value">1.50 ns</span>
-                </div>
-                <div class="data-row">
-                    <span class="data-label">SNR (dB):</span>
-                    <span id="snrValue" class="data-value" style="color: var(--accent-tertiary);">32.4</span>
-                </div>
-                <hr style="margin: 1rem 0; border: 0; border-top: 1px solid rgba(255,255,255,0.05);">
-                <div class="data-row">
-                    <span class="data-label">Raw TDOA Avg:</span>
-                    <span id="rawTdoa" class="data-value">0.00 ns</span>
+                    <span class="data-label">Active Targets:</span>
+                    <span id="targetCount" class="data-value">0</span>
                 </div>
                 <div class="data-row">
                     <span class="data-label">Geometric AoA:</span>
@@ -58,19 +42,37 @@
                     <span class="data-label">AI Corrected AoA:</span>
                     <span id="correctedAngle" class="data-value ai-value">000.00°</span>
                 </div>
+                <hr style="margin: 0.8rem 0; border: 0; border-top: 1px solid rgba(255,255,255,0.05);">
                 <div class="data-row">
-                    <span class="data-label">Est. Accuracy:</span>
-                    <span id="rmsError" class="data-value ai-value">±0.00°</span>
+                    <span class="data-label">Kalman Smoothing:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="kalmanToggle" checked>
+                        <span class="slider"></span>
+                    </label>
                 </div>
-                <div style="margin-top: 1.5rem; display: flex; gap: 10px;">
-                    <button class="glow-btn" id="rescanBtn">RESET FILTERS</button>
-                    <button class="glow-btn" id="trainBtn" style="border-color: var(--accent-secondary); color: var(--accent-secondary);">RETRAIN AI</button>
+                <div class="data-row">
+                    <span class="data-label">AI Optimization:</span>
+                    <label class="switch">
+                        <input type="checkbox" id="aiToggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="panel analytics">
+                <h3>PERFORMANCE ANALYTICS</h3>
+                <div class="chart-container" style="height: 180px; position: relative;">
+                    <canvas id="accuracyChart"></canvas>
                 </div>
             </div>
 
             <div class="panel logs">
-                <h3>OPERATIONAL SYSTEM LOGS</h3>
+                <h3>SYSTEM LOGS</h3>
                 <div class="terminal" id="terminal"></div>
+                <div style="margin-top: 1rem; display: flex; gap: 8px;">
+                    <button class="glow-btn small" id="rescanBtn">RESET</button>
+                    <button class="glow-btn small" id="trainBtn" style="border-color: var(--accent-secondary); color: var(--accent-secondary);">TRAIN</button>
+                </div>
             </div>
         </section>
     </div>

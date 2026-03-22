@@ -24,21 +24,22 @@ class SignalData(BaseModel):
     tdoa1: float
     tdoa2: float
     snr: float
-
-@app.get("/")
-async def root():
-    return {"status": "online", "model_loaded": df_finder.is_trained}
+    id: int = 0
 
 @app.post("/predict")
-async def predict(data: SignalData):
-    input_data = np.array([[data.tdoa1, data.tdoa2, data.snr]])
-    result = df_finder.predict_angle(input_data)
-    return result
+async def predict(signals: list[SignalData]):
+    results = []
+    for sig in signals:
+        input_data = np.array([[sig.tdoa1, sig.tdoa2, sig.snr]])
+        res = df_finder.predict_angle(input_data)
+        res["id"] = sig.id
+        results.append(res)
+    return results
 
 @app.post("/train")
-async def train(samples: int = 2000):
+async def train(samples: int = 3000, targets: int = 3):
     try:
-        data = generate_synthetic_tdoa(samples)
+        data = generate_synthetic_tdoa(samples, num_targets=targets)
         X = data[['tdoa1', 'tdoa2', 'snr']].values
         y = data['true_angle'].values
         

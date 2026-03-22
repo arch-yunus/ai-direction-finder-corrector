@@ -5,6 +5,36 @@ const terminal = document.getElementById('terminal');
 let width, height, centerX, centerY, radius;
 const API_URL = 'http://localhost:8000';
 
+class KalmanFilter {
+    constructor(processNoise = 0.01, measurementNoise = 2.0) {
+        this.q = processNoise; // Process noise
+        this.r = measurementNoise; // Measurement noise
+        this.x = 0; // Estimated value
+        this.p = 1; // Error covariance
+        this.k = 0; // Kalman gain
+    }
+
+    update(measurement) {
+        // Prediction update
+        this.p = this.p + this.q;
+        // Measurement update
+        this.k = this.p / (this.p + this.r);
+        this.x = this.x + this.k * (measurement - this.x);
+        this.p = (1 - this.k) * this.p;
+        return this.x;
+    }
+}
+
+// Global State
+let sweepAngle = 0;
+let signals = []; 
+let targets = [
+    { id: 1, angle: 45, kalman: new KalmanFilter(), history: [] },
+    { id: 2, angle: 180, kalman: new KalmanFilter(), history: [] }
+];
+let accuracyChart;
+let frameCount = 0;
+
 function resize() {
     width = canvas.parentElement.clientWidth;
     height = canvas.parentElement.clientHeight;
@@ -18,16 +48,41 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-let sweepAngle = 0;
-let signals = []; // Array of {angle, intensity, life, isCorrected}
-let currentData = {
-    baseline: 0,
-    corrected: 0,
-    rms: 0,
-    tdoa: 0,
-    snr: 30,
-    noise: 1.5
-};
+// Chart Initialization
+function initChart() {
+    const ctxChart = document.getElementById('accuracyChart').getContext('2d');
+    accuracyChart = new Chart(ctxChart, {
+        type: 'line',
+        data: {
+            labels: Array(20).fill(''),
+            datasets: [{
+                label: 'AI Error (deg)',
+                borderColor: '#a8ff00',
+                backgroundColor: 'rgba(168, 255, 0, 0.1)',
+                data: Array(20).fill(0),
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true
+            }, {
+                label: 'Raw Error (deg)',
+                borderColor: '#ff0055',
+                data: Array(20).fill(0),
+                borderWidth: 1,
+                tension: 0.4,
+                dash: [5, 5]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { min: 0, max: 20, grid: { color: 'rgba(255,255,255,0.05)' } },
+                x: { display: false }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
 
 function log(msg, type = 'info') {
     const p = document.createElement('p');
@@ -41,33 +96,18 @@ function log(msg, type = 'info') {
 
 function drawBackground() {
     ctx.save();
-    
-    // Grid
     ctx.strokeStyle = 'rgba(0, 242, 255, 0.1)';
-    ctx.lineWidth = 1;
     for (let i = 1; i <= 5; i++) {
         ctx.beginPath();
         ctx.arc(centerX, centerY, (radius / 5) * i, 0, Math.PI * 2);
         ctx.stroke();
     }
-
-    // Axes
     ctx.beginPath();
     ctx.moveTo(centerX - radius, centerY);
     ctx.lineTo(centerX + radius, centerY);
     ctx.moveTo(centerX, centerY - radius);
     ctx.lineTo(centerX, centerY + radius);
     ctx.stroke();
-
-    // Compass
-    ctx.fillStyle = 'rgba(0, 242, 255, 0.3)';
-    ctx.font = '700 12px JetBrains Mono';
-    ctx.textAlign = 'center';
-    ctx.fillText('N (0°)', centerX, centerY - radius - 15);
-    ctx.fillText('E (90°)', centerX + radius + 25, centerY + 5);
-    ctx.fillText('S (180°)', centerX, centerY + radius + 25);
-    ctx.fillText('W (270°)', centerX - radius - 30, centerY + 5);
-    
     ctx.restore();
 }
 
@@ -75,113 +115,100 @@ function drawSweep() {
     ctx.save();
     ctx.translate(centerX, centerY);
     ctx.rotate(sweepAngle);
-
     const grad = ctx.createConicGradient(0, 0, 0);
     grad.addColorStop(0, 'transparent');
-    grad.addColorStop(0.1, 'rgba(0, 242, 255, 0.05)');
-    grad.addColorStop(1, 'rgba(0, 242, 255, 0.3)');
-
+    grad.addColorStop(1, 'rgba(0, 242, 255, 0.2)');
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.arc(0, 0, radius, -0.6, 0);
     ctx.fill();
-
-    // Leading edge
     ctx.strokeStyle = 'rgba(0, 242, 255, 0.8)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(radius, 0);
     ctx.stroke();
-
     ctx.restore();
     sweepAngle += 0.035;
 }
 
-function updateTelemetryUI() {
-    document.getElementById('baselineAngle').textContent = currentData.baseline.toFixed(2) + '°';
-    document.getElementById('correctedAngle').textContent = currentData.corrected.toFixed(2) + '°';
-    document.getElementById('rmsError').textContent = '±' + currentData.rms.toFixed(2) + '°';
-    document.getElementById('snrValue').textContent = currentData.snr.toFixed(1);
-    document.getElementById('rawTdoa').textContent = currentData.tdoa.toFixed(3) + ' ns';
-    document.getElementById('coordX').textContent = `AZ: ${currentData.corrected.toFixed(2).padStart(6, '0')}°`;
-}
+async function updateSimulation() {
+    const useAI = document.getElementById('aiToggle').checked;
+    const useKalman = document.getElementById('kalmanToggle').checked;
+    
+    // Prepare signals for backend
+    const signalsToPredict = targets.map(t => {
+        const noise = 2.0;
+        const targetTrueAngle = (t.angle + (Date.now() / 5000) * 10) % 360;
+        const tdoa1 = (0.5 * Math.cos(targetTrueAngle * Math.PI / 180)) / 3e8 * 1e9 + (Math.random() - 0.5) * noise;
+        const tdoa2 = (0.5 * Math.sin(targetTrueAngle * Math.PI / 180)) / 3e8 * 1e9 + (Math.random() - 0.5) * noise;
+        return { tdoa1, tdoa2, snr: 25, id: t.id, trueAngle: targetTrueAngle };
+    });
 
-async function fetchAIPrediction(tdoa1, tdoa2, snr) {
+    let predictions = [];
     try {
         const response = await fetch(`${API_URL}/predict`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tdoa1, tdoa2, snr })
+            body: JSON.stringify(signalsToPredict)
         });
-        if (!response.ok) throw new Error('API Offline');
-        return await response.json();
-    } catch (err) {
-        return null; // Fallback handled in simulation
+        if (response.ok) {
+            predictions = await response.json();
+            document.getElementById('backendStatus').textContent = 'BACKEND: ONLINE';
+            document.getElementById('backendStatus').style.color = 'var(--accent-tertiary)';
+        }
+    } catch (e) {
+        document.getElementById('backendStatus').textContent = 'BACKEND: OFFLINE';
+        document.getElementById('backendStatus').style.color = 'var(--accent-secondary)';
     }
+
+    signalsToPredict.forEach((sig, index) => {
+        const pred = predictions.find(p => p.id === sig.id);
+        let finalAngle = sig.trueAngle + (Math.random() - 0.5) * 15; // Baseline noisy
+        let aiError = 15;
+        
+        if (useAI && pred && pred.status === "ai_optimized") {
+            finalAngle = pred.angle;
+            aiError = Math.abs(pred.angle - sig.trueAngle);
+        }
+        
+        if (useKalman) {
+            finalAngle = targets[index].kalman.update(finalAngle);
+        }
+
+        // Update UI for the primary target
+        if (index === 0) {
+            document.getElementById('baselineAngle').textContent = sig.trueAngle.toFixed(1) + '°';
+            document.getElementById('correctedAngle').textContent = finalAngle.toFixed(1) + '°';
+            document.getElementById('coordX').textContent = `AZ: ${finalAngle.toFixed(2).padStart(6,'0')}°`;
+            
+            // Update Chart
+            accuracyChart.data.datasets[0].data.shift();
+            accuracyChart.data.datasets[0].data.push(aiError);
+            accuracyChart.data.datasets[1].data.shift();
+            accuracyChart.data.datasets[1].data.push(Math.abs((sig.trueAngle + 10) - sig.trueAngle));
+            accuracyChart.update('none');
+        }
+
+        signals.push({ angle: finalAngle, life: 1.0, isAI: useAI });
+    });
+
+    document.getElementById('targetCount').textContent = targets.length;
 }
 
-// Simulation loop
-setInterval(async () => {
-    // Simulate real signal environment
-    const targetAngle = (Date.now() / 10000 % 1) * 360; // Moving target
-    const noise = 1.5;
-    const snr = 20 + Math.random() * 15;
-    
-    // Geometric approximation (noisy)
-    const tdoa1 = (0.5 * Math.cos(targetAngle * Math.PI / 180)) / 3e8 * 1e9 + (Math.random() - 0.5) * noise;
-    const tdoa2 = (0.5 * Math.sin(targetAngle * Math.PI / 180)) / 3e8 * 1e9 + (Math.random() - 0.5) * noise;
-    
-    const apiResult = await fetchAIPrediction(tdoa1, tdoa2, snr);
-    
-    currentData.baseline = (targetAngle + (Math.random() - 0.5) * 15) % 360;
-    currentData.tdoa = tdoa1;
-    currentData.snr = snr;
-
-    if (apiResult && apiResult.status === "ai_optimized") {
-        currentData.corrected = apiResult.angle;
-        currentData.rms = apiResult.rms_error;
-    } else {
-        // Untrained fallback logic
-        currentData.corrected = currentData.baseline;
-        currentData.rms = 10.0;
-    }
-
-    // Add to radar signals
-    signals.push({ angle: currentData.baseline, intensity: 0.4, life: 1.0, isCorrected: false });
-    signals.push({ angle: currentData.corrected, intensity: 1.0, life: 1.0, isCorrected: true });
-
-    updateTelemetryUI();
-}, 500);
-
 function drawSignals() {
-    signals.forEach((sig, index) => {
+    signals.forEach((sig, i) => {
         const rad = (sig.angle - 90) * (Math.PI / 180);
         const x = centerX + Math.cos(rad) * radius * 0.95;
         const y = centerY + Math.sin(rad) * radius * 0.95;
-
-        ctx.globalAlpha = sig.life * sig.intensity;
-        ctx.fillStyle = sig.isCorrected ? '#a8ff00' : '#ff0055';
-        
+        ctx.globalAlpha = sig.life;
+        ctx.fillStyle = sig.isAI ? '#a8ff00' : '#ff0055';
         ctx.beginPath();
-        ctx.arc(x, y, sig.isCorrected ? 4 : 2, 0, Math.PI * 2);
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
         ctx.fill();
-
-        if (sig.isCorrected) {
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = '#a8ff00';
-            ctx.strokeStyle = '#a8ff00';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(centerX, centerY);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        }
-
         sig.life -= 0.01;
-        if (sig.life <= 0) signals.splice(index, 1);
+        if (sig.life <= 0) signals.splice(i, 1);
     });
     ctx.globalAlpha = 1;
 }
@@ -192,29 +219,22 @@ function animate() {
     drawBackground();
     drawSignals();
     drawSweep();
+    if (frameCount++ % 30 === 0) updateSimulation();
     requestAnimationFrame(animate);
 }
 
-document.getElementById('rescanBtn').addEventListener('click', () => {
-    log('Resetting digital signal filters...', 'warning');
-    signals = [];
-    setTimeout(() => log('Filters re-initialized. Recalibrating...', 'info'), 500);
-});
-
 document.getElementById('trainBtn').addEventListener('click', async () => {
-    log('Initiating AI Retraining Sequence...', 'warning');
-    const btn = document.getElementById('trainBtn');
-    btn.disabled = true;
-    try {
-        const res = await fetch(`${API_URL}/train`, { method: 'POST' });
-        const data = await res.json();
-        log(`Training successful! MAE: ${data.mae.toFixed(3)}°`, 'success');
-    } catch (err) {
-        log('Training failed: Backend offline.', 'error');
-    }
-    btn.disabled = false;
+    log('Retraining multi-target model...', 'warning');
+    const res = await fetch(`${API_URL}/train`, { method: 'POST' });
+    const data = await res.json();
+    log(`Success! MAE: ${data.mae.toFixed(3)}°`, 'success');
 });
 
+document.getElementById('rescanBtn').addEventListener('click', () => {
+    log('Clearing radar buffers...', 'info');
+    signals = [];
+});
+
+initChart();
 animate();
-log('AI Correction Engine Online.', 'success');
-log('Awaiting signal synchronization...', 'info');
+log('AI Analytics Dashboard v3.0 Initialized.', 'success');
