@@ -136,14 +136,19 @@ function drawSweep() {
 async function updateSimulation() {
     const useAI = document.getElementById('aiToggle').checked;
     const useKalman = document.getElementById('kalmanToggle').checked;
+    const currentEnv = document.getElementById('missionProfile').value;
     
     // Prepare signals for backend
     const signalsToPredict = targets.map(t => {
-        const noise = 2.0;
+        // Environment based noise
+        let noise = 2.0;
+        if (currentEnv === "Urban") noise = 4.0;
+        if (currentEnv === "Desert") noise = 1.0;
+
         const targetTrueAngle = (t.angle + (Date.now() / 5000) * 10) % 360;
         const tdoa1 = (0.5 * Math.cos(targetTrueAngle * Math.PI / 180)) / 3e8 * 1e9 + (Math.random() - 0.5) * noise;
         const tdoa2 = (0.5 * Math.sin(targetTrueAngle * Math.PI / 180)) / 3e8 * 1e9 + (Math.random() - 0.5) * noise;
-        return { tdoa1, tdoa2, snr: 25, id: t.id, trueAngle: targetTrueAngle };
+        return { tdoa1, tdoa2, snr: currentEnv === "Marine" ? 15 : 25, id: t.id, env: currentEnv, trueAngle: targetTrueAngle };
     });
 
     let predictions = [];
@@ -155,7 +160,7 @@ async function updateSimulation() {
         });
         if (response.ok) {
             predictions = await response.json();
-            document.getElementById('backendStatus').textContent = 'BACKEND: ONLINE';
+            document.getElementById('backendStatus').textContent = `BCK: ${currentEnv.toUpperCase()}`;
             document.getElementById('backendStatus').style.color = 'var(--accent-tertiary)';
         }
     } catch (e) {
@@ -165,7 +170,7 @@ async function updateSimulation() {
 
     signalsToPredict.forEach((sig, index) => {
         const pred = predictions.find(p => p.id === sig.id);
-        let finalAngle = sig.trueAngle + (Math.random() - 0.5) * 15; // Baseline noisy
+        let finalAngle = sig.trueAngle + (Math.random() - 0.5) * 15;
         let aiError = 15;
         
         if (useAI && pred && pred.status === "ai_optimized") {
@@ -183,6 +188,18 @@ async function updateSimulation() {
             document.getElementById('correctedAngle').textContent = finalAngle.toFixed(1) + '°';
             document.getElementById('coordX').textContent = `AZ: ${finalAngle.toFixed(2).padStart(6,'0')}°`;
             
+            // Classification Label
+            if (pred && pred.class) {
+                const badge = document.getElementById('targetClass');
+                badge.textContent = pred.class;
+                badge.style.color = pred.class === "RADAR" ? "var(--accent-color)" : (pred.class === "JAMMER" ? "var(--accent-secondary)" : "var(--accent-tertiary)");
+            }
+
+            // Autonomous Calibration
+            if (aiError > 8.0 && useAI && frameCount > 100) {
+                autoCalibrate(currentEnv);
+            }
+
             // Update Chart
             accuracyChart.data.datasets[0].data.shift();
             accuracyChart.data.datasets[0].data.push(aiError);
@@ -196,6 +213,33 @@ async function updateSimulation() {
 
     document.getElementById('targetCount').textContent = targets.length;
 }
+
+let isTraining = false;
+async function autoCalibrate(env) {
+    if (isTraining) return;
+    isTraining = true;
+    document.getElementById('autoCalStatus').textContent = "CALIBRATING...";
+    document.getElementById('systemAlert').textContent = "AUTO-CAL ACTIVE";
+    log(`High Error Detected. Auto-Calibrating for ${env}...`, 'warning');
+    
+    try {
+        const res = await fetch(`${API_URL}/train?environment=${env}`, { method: 'POST' });
+        const data = await res.json();
+        log(`Auto-Cal Success! New MAE: ${data.mae.toFixed(3)}°`, 'success');
+        document.getElementById('systemAlert').textContent = "SYSTEM NOMINAL";
+    } catch (e) {
+        log('Auto-Calibration Failed.', 'error');
+    }
+    
+    document.getElementById('autoCalStatus').textContent = "STANDBY";
+    setTimeout(() => { isTraining = false; }, 5000); // Cooldown
+}
+
+document.getElementById('missionProfile').addEventListener('change', (e) => {
+    log(`Mission Profile Switched: ${e.target.value}`, 'info');
+    document.getElementById('systemAlert').textContent = `SCENARIO: ${e.target.value.toUpperCase()}`;
+    signals = [];
+});
 
 function drawSignals() {
     signals.forEach((sig, i) => {

@@ -10,11 +10,15 @@
 <body>
     <header>
         <div class="logo">
-            <h1>AI SIGNAL CORRECTOR <span>v3.0</span></h1>
+            <h1>TACTICAL MISSION CONTROL <span>v4.0</span></h1>
         </div>
         <div class="header-actions">
+            <select id="missionProfile" class="mission-select">
+                <option value="Desert">MISSION: DESERT STORM</option>
+                <option value="Urban">MISSION: URBAN SHIELD</option>
+                <option value="Marine">MISSION: DEEP SEA</option>
+            </select>
             <span class="status-badge" id="backendStatus">BACKEND: OFFLINE</span>
-            <span class="status-badge" style="background: rgba(168, 255, 0, 0.1); color: var(--accent-tertiary);">ANALYTICS ACTIVE</span>
         </div>
     </header>
 
@@ -25,13 +29,18 @@
             <div class="coordinate-display">
                 <span id="coordX">AZ: 000.00°</span>
             </div>
+            <div class="tactical-alert" id="systemAlert">SYSTEM READY</div>
         </section>
 
         <section class="telemetry-section">
             <div class="panel telemetry">
-                <h3>LIVE SIGNAL DATA</h3>
+                <h3>TACTICAL TELEMETRY</h3>
                 <div class="data-row">
-                    <span class="data-label">Active Targets:</span>
+                    <span class="data-label">Primary Target:</span>
+                    <span id="targetClass" class="status-badge" style="background: rgba(0, 242, 255, 0.1); color: var(--accent-color);">SEARCHING...</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Active Signals:</span>
                     <span id="targetCount" class="data-value">0</span>
                 </div>
                 <div class="data-row">
@@ -44,14 +53,18 @@
                 </div>
                 <hr style="margin: 0.8rem 0; border: 0; border-top: 1px solid rgba(255,255,255,0.05);">
                 <div class="data-row">
-                    <span class="data-label">Kalman Smoothing:</span>
+                    <span class="data-label">Auto-Calibration:</span>
+                    <span id="autoCalStatus" class="data-value" style="font-size: 0.7rem; color: var(--accent-tertiary);">STANDBY</span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">Smoothing:</span>
                     <label class="switch">
                         <input type="checkbox" id="kalmanToggle" checked>
                         <span class="slider"></span>
                     </label>
                 </div>
                 <div class="data-row">
-                    <span class="data-label">AI Optimization:</span>
+                    <span class="data-label">AI Engine:</span>
                     <label class="switch">
                         <input type="checkbox" id="aiToggle" checked>
                         <span class="slider"></span>
@@ -60,18 +73,18 @@
             </div>
 
             <div class="panel analytics">
-                <h3>PERFORMANCE ANALYTICS</h3>
+                <h3>MISSION ANALYTICS</h3>
                 <div class="chart-container" style="height: 180px; position: relative;">
                     <canvas id="accuracyChart"></canvas>
                 </div>
             </div>
 
             <div class="panel logs">
-                <h3>SYSTEM LOGS</h3>
+                <h3>COMMAND CONSOLE</h3>
                 <div class="terminal" id="terminal"></div>
                 <div style="margin-top: 1rem; display: flex; gap: 8px;">
                     <button class="glow-btn small" id="rescanBtn">RESET</button>
-                    <button class="glow-btn small" id="trainBtn" style="border-color: var(--accent-secondary); color: var(--accent-secondary);">TRAIN</button>
+                    <button class="glow-btn small" id="trainBtn" style="border-color: var(--accent-secondary); color: var(--accent-secondary);">CALIB</button>
                 </div>
             </div>
         </section>

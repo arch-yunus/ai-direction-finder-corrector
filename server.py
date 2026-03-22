@@ -25,6 +25,7 @@ class SignalData(BaseModel):
     tdoa2: float
     snr: float
     id: int = 0
+    env: str = "Desert"
 
 @app.post("/predict")
 async def predict(signals: list[SignalData]):
@@ -33,13 +34,22 @@ async def predict(signals: list[SignalData]):
         input_data = np.array([[sig.tdoa1, sig.tdoa2, sig.snr]])
         res = df_finder.predict_angle(input_data)
         res["id"] = sig.id
+        
+        # Signal Classification Logic (Heuristic for v4.0)
+        if sig.snr > 30:
+            res["class"] = "RADAR"
+        elif sig.snr < 15:
+            res["class"] = "JAMMER"
+        else:
+            res["class"] = "COMM"
+            
         results.append(res)
     return results
 
 @app.post("/train")
-async def train(samples: int = 3000, targets: int = 3):
+async def train(samples: int = 3000, targets: int = 3, environment: str = "Desert"):
     try:
-        data = generate_synthetic_tdoa(samples, num_targets=targets)
+        data = generate_synthetic_tdoa(samples, num_targets=targets, environment=environment)
         X = data[['tdoa1', 'tdoa2', 'snr']].values
         y = data['true_angle'].values
         
